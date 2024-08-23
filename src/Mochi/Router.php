@@ -1,7 +1,6 @@
 <?php
 
-require_once "./HttpMethod.php";
-require_once "./HttpNotFoundException.php";
+namespace Mochi;
 
 class Router
 {

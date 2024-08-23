@@ -1,0 +1,17 @@
+{
+    "name": "beresiarte/mochi",
+    "description": "Php framework",
+    "type": "library",
+    "autoload": {
+        "psr-4": {
+            "Mochi\\": "src/Mochi/"
+        }
+    },
+    "authors": [
+        {
+            "name": "juan beresiarte",
+            "email": "juanberesiarte@gmail.com"
+        }
+    ],
+    "require": {}
+}

@@ -1,5 +1,7 @@
 <?php
 
+namespace Mochi;
+
 class HttpMethod
 {
 
