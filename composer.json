@@ -2,9 +2,13 @@
     "name": "beresiarte/mochi",
     "description": "Php framework",
     "type": "library",
+    "scripts": {
+        "test": "phpunit --color=always --testdox tests/"
+    },
     "autoload": {
         "psr-4": {
-            "Mochi\\": "src/Mochi/"
+            "Mochi\\": "src/Mochi/",
+            "Mochi\\Tests\\": "tests/"
         }
     },
     "authors": [
@@ -13,5 +17,7 @@
             "email": "juanberesiarte@gmail.com"
         }
     ],
-    "require": {}
+    "require-dev": {
+        "phpunit/phpunit": "^10"
+    }
 }

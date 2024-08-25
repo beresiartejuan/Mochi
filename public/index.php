@@ -8,4 +8,4 @@ Router::get("/", function () {
     print_r("OK! :D");
 });
 
-Router::resolve();
+Router::resolve()();
