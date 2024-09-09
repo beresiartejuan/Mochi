@@ -14,7 +14,9 @@ class RouterTest extends TestCase {
         $action = fn() => 'Test';
         Router::get($uri, $action);
 
-        $this->assertEquals($action, Router::resolve($uri, HttpMethods::GET->value));
+        $route = Router::resolve($uri, HttpMethods::GET->value);
+
+        $this->assertEquals($action, $route->action());
 
     }
 
@@ -31,7 +33,8 @@ class RouterTest extends TestCase {
         }
 
         foreach ($routes as $route) {
-            $this->assertEquals($route[2], Router::resolve($route[1], $route[0]->value));
+            $original_route = Router::resolve($route[1], $route[0]->value);
+            $this->assertEquals($route[2], $original_route->action());
         }
 
     }

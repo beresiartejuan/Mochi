@@ -30,13 +30,13 @@ class Route {
         return count($this->parametres) > 0;       
     }
 
-    public function match(string $uri){
-        return preg_match("#^{$this->regex}$#", $uri);
+    public function match(string $uri): bool {
+        return preg_match("#^{$this->regex}/?$#", $uri);
     }
 
     public function parseParameters(string $uri){
         preg_match("#^{$this->regex}$#", $uri, $values);
-        return array_combine($this->parametres, $values);
+        return array_combine($this->parametres, array_slice($values, 1));
     }
 
 }
