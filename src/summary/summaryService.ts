@@ -45,12 +45,26 @@ export function messagesToSummaryText(messages: ChatMessage[]): string {
     .join("\n");
 }
 
+const MAX_SUMMARY_LINES = 8;
+const MAX_SUMMARY_WORDS = 120;
+
 export function buildSummaryPrompt(currentSummary: string, messages: ChatMessage[]): string {
   const conversation = messagesToSummaryText(messages);
+  const maxLines = MAX_SUMMARY_LINES;
+  const maxWords = MAX_SUMMARY_WORDS;
+
+  const compactInstructions =
+    `Reglas estrictas para el resumen:\n` +
+    `- Máximo ${maxLines} líneas.\n` +
+    `- Máximo ${maxWords} palabras.\n` +
+    `- Solo datos accionables: temas tratados, decisiones, preferencias del usuario, datos clave y pendientes.\n` +
+    `- No repitas información.\n` +
+    `- No incluyas saludos, despedidas ni metacommentarios sobre el resumen.\n` +
+    `- Respondé solo el resumen, sin texto extra.`;
 
   return currentSummary.trim().length > 0
-    ? `Tienes este resumen previo de la conversación:\n\n${currentSummary}\n\nAhora fusionalo con la siguiente conversación y generá un único resumen claro, conciso y útil:\n\n${conversation}\n\nDevolvé solo el resumen fusionado, sin comentarios extras.`
-    : `Generá un resumen claro, conciso y útil de la siguiente conversación entre un usuario y un asistente:\n\n${conversation}\n\nDevolvé solo el resumen, sin comentarios extras.`;
+    ? `Tienes este resumen previo de la conversación:\n\n${currentSummary}\n\nAhora fusionalo con la siguiente conversación y generá un único resumen compacto:\n\n${conversation}\n\n${compactInstructions}`
+    : `Generá un resumen compacto de la siguiente conversación entre un usuario y un asistente:\n\n${conversation}\n\n${compactInstructions}`;
 }
 
 export async function generateFusedSummary(
@@ -62,7 +76,11 @@ export async function generateFusedSummary(
   const prompt = buildSummaryPrompt(currentSummary, messages);
 
   return chatWithOllamaRaw(agent, model, [
-    { role: "system", content: "Sos un resumidor experto. Resumís conversaciones manteniendo solo lo relevante: temas tratados, decisiones, datos clave y contexto necesario." },
+    {
+      role: "system",
+      content:
+        "Sos un resumidor experto y compacto. Fusionás conversaciones anteriores con nuevos mensajes y devolvés un resumen denso, útil y breve. Preferís calidad sobre cantidad de texto.",
+    },
     { role: "user", content: prompt },
   ]);
 }
