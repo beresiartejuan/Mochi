@@ -65,12 +65,13 @@ export class MessageStore {
     return this.messages.filter((message) => !message.isInSummary);
   }
 
-  takeLastUnansweredFromUser(): ChatMessage[] {
+  takePendingUserMessages(): ChatMessage[] {
     const result: ChatMessage[] = [];
 
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const message = this.messages[i]!;
       if (message.author === "assistant") break;
+      if (message.isInSummary) break;
       result.unshift(message);
     }
 
