@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import type { LanguageModel } from "ai";
 import type { ChatMessage, MessageAuthor } from "../store/messageStore.js";
+import { SUMMARY_SYSTEM_PROMPT } from "../config/prompts.js";
 import { buildSummaryPrompt } from "./summaryPrompt.js";
 
 export const SUMMARY_THRESHOLD_TOTAL = 25;
@@ -48,8 +49,7 @@ export async function generateFusedSummary(
 
   const result = await generateText({
     model,
-    system:
-      "Sos un resumidor experto y compacto. Fusionás conversaciones anteriores con nuevos mensajes y devolvés un resumen denso, útil y breve. Preferís calidad sobre cantidad de texto.",
+    system: SUMMARY_SYSTEM_PROMPT,
     prompt,
   });
 
