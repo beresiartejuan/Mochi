@@ -13,9 +13,11 @@ function createIPv4Fetch(): typeof fetch {
       const payload =
         typeof body === "string"
           ? body
-          : body !== undefined && body !== null
-            ? JSON.stringify(body)
-            : undefined;
+          : body instanceof URLSearchParams
+            ? body.toString()
+            : body !== undefined && body !== null
+              ? JSON.stringify(body)
+              : undefined;
 
       const req = request(
         {
