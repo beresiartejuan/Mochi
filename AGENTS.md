@@ -8,6 +8,7 @@ Guía para agentes que trabajen en este proyecto.
 - Sin librería de bot de Telegram. Se usa `node-telegram-bot-api` solo como cliente HTTP de la API.
 - Ollama Cloud vía el SDK oficial `ollama` con autenticación por API key.
 - Variables de entorno validadas con Zod en `src/config/env.ts`.
+- `SUMMARY_MODEL` puede apuntar a un modelo distinto de `CHAT_MODEL`; si no se define, se usa `CHAT_MODEL`.
 - Importar archivos del proyecto con extensión `.js`, no `.ts`.
 
 ## Estructura de carpetas

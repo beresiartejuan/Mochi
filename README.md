@@ -28,6 +28,7 @@ Variables obligatorias:
 Variables opcionales:
 
 - `OLLAMA_HOST`: default `https://ollama.com`.
+- `SUMMARY_MODEL`: modelo para resumir la conversación. Si no se define, usa `CHAT_MODEL`.
 - `POLLING_TIMEOUT`: default `60`.
 - `POLLING_RETRY_SECONDS`: default `6`.
 

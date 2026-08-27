@@ -64,7 +64,7 @@ export async function maybeRecalculateSummary(deps: BotDependencies): Promise<bo
   const result = await recalculateSummaryIfNeeded({
     messagesNotInSummary,
     currentSummary: store.getSummary(),
-    model: config.CHAT_MODEL,
+    model: config.SUMMARY_MODEL ?? config.CHAT_MODEL,
     agent: ollamaAgent,
     totalThreshold: SUMMARY_THRESHOLD_TOTAL,
     batchThreshold: SUMMARY_BATCH_THRESHOLD,

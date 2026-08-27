@@ -6,6 +6,7 @@ const envSchema = z.object({
   OLLAMA_HOST: z.string().url().default("https://ollama.com"),
   CHAT_ID: z.coerce.bigint().refine((v) => v > 0n, "CHAT_ID must be a positive integer"),
   CHAT_MODEL: z.string().min(1, "CHAT_MODEL is required"),
+  SUMMARY_MODEL: z.string().min(1).optional(),
   POLLING_TIMEOUT: z.coerce.number().int().min(1).max(600).default(60),
   POLLING_RETRY_SECONDS: z.coerce.number().int().min(1).default(6),
 });
