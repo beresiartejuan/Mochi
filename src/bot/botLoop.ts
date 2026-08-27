@@ -30,10 +30,11 @@ export type BotDependencies = {
 export function createBotDependencies(): BotDependencies {
   const env = loadEnv();
   const provider = createAiSdkOllamaProvider(env);
+  const telegramApi = createTelegramApi(env.TELEGRAM_BOT_TOKEN);
 
   return {
     config: env,
-    telegramApi: createTelegramApi(env.TELEGRAM_BOT_TOKEN),
+    telegramApi,
     aiSdkModel: provider(env.CHAT_MODEL),
     summaryModel: provider(env.SUMMARY_MODEL ?? env.CHAT_MODEL),
     store: new MessageStore(),
@@ -43,6 +44,8 @@ export function createBotDependencies(): BotDependencies {
       retrySeconds: env.POLLING_RETRY_SECONDS,
     }),
     tools: createAgentTools({
+      telegramApi,
+      chatId: env.CHAT_ID.toString(),
       serpApiKey: env.SERP_API_KEY,
       tavilyApiKey: env.TAVILY_API_KEY,
     }),
@@ -102,14 +105,21 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const ollamaMessages = formatMessagesForPrompt(messagesNotInSummary, pendingUserMessages);
 
-  const replyText = await runPersonalAgent({
+  const agentResult = await runPersonalAgent({
     model: aiSdkModel,
     summary: store.getSummary(),
     messages: ollamaMessages,
     tools: deps.tools,
+    telegramApi,
+    chatId: config.CHAT_ID.toString(),
   });
 
-  const sentMessage = await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), replyText);
+  if (agentResult.type === "tool_sent") {
+    store.add(telegramMessageToChatMessageInput(agentResult.sentMessage, "assistant"));
+    return;
+  }
+
+  const sentMessage = await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), agentResult.text);
 
   store.add(telegramMessageToChatMessageInput(sentMessage, "assistant"));
 }

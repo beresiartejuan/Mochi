@@ -6,7 +6,7 @@ Bot personal de Telegram con un agente conversacional respaldado por Ollama Clou
 
 - Recibe mensajes de un chat personal autorizado por `CHAT_ID`.
 - Responde con un agente conversacional basado en Vercel AI SDK y Ollama Cloud.
-- Puede llamar herramientas (tools): fecha/hora, búsqueda en Wikipedia, búsqueda web con SerpApi/Tavily.
+- Puede llamar herramientas (tools): enviar mensajes por Telegram, fecha/hora, búsqueda en Wikipedia y búsqueda web con SerpApi/Tavily.
 - Mantiene una lista ordenada de mensajes en memoria.
 - Resume la conversación cuando el acumulado de mensajes supera ciertos umbrales.
 - Personalidad alegre, traviesa y un poquito picante, siempre en español.
@@ -28,7 +28,7 @@ Variables obligatorias:
 
 Variables opcionales:
 
-- `OLLAMA_HOST`: default `https://ollama.com`.
+- `OLLAMA_HOST`: default `https://ollama.com` (internamente se convierte a `https://api.ollama.com/api`).
 - `SUMMARY_MODEL`: modelo para resumir la conversación. Si no se define, usa `CHAT_MODEL`.
 - `SERP_API_KEY`: API key de SerpApi para búsqueda web.
 - `TAVILY_API_KEY`: API key de Tavily para búsqueda web (fallback de SerpApi).
