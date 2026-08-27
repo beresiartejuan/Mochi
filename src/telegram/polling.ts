@@ -1,5 +1,6 @@
 import { Api } from "node-telegram-bot-api";
 import type { Update } from "node-telegram-bot-api";
+import { createTelegramApi } from "./telegramApi.js";
 
 export type { Update };
 
@@ -19,7 +20,7 @@ export class TelegramLongPoller {
   private running = false;
 
   constructor(config: PollingConfig) {
-    this.api = new Api(config.token);
+    this.api = createTelegramApi(config.token);
     this.timeout = config.timeout;
     this.retrySeconds = config.retrySeconds;
   }
