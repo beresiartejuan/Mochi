@@ -1,11 +1,11 @@
 import type { Api } from "node-telegram-bot-api";
 import { loadEnv, type Env } from "../config/env.js";
 import { createAiSdkOllamaProvider } from "../config/aiSdk.js";
-import { MessageStore, sumScores, type ChatMessage } from "../store/messageStore.js";
+import { MessageStore, sumScores } from "../store/messageStore.js";
 import { createTelegramApi, sendTelegramMessage, extractMessageFromUpdate } from "../telegram/telegramApi.js";
 import { TelegramLongPoller } from "../telegram/polling.js";
-import { isOlderThanOneMinute } from "../utils/time.js";
-import { inspect } from "node:util";
+import { isOlderThanReplyThreshold } from "../utils/time.js";
+import { formatError } from "../utils/error.js";
 import { telegramMessageToChatMessageInput } from "../mappers/messageMapper.js";
 import { loadLastUpdateId, saveLastUpdateId } from "../store/offsetStore.js";
 import {
@@ -15,22 +15,9 @@ import {
   SUMMARY_THRESHOLD_TOTAL,
 } from "../summary/summaryService.js";
 import { runPersonalAgent } from "../agents/personalAgent.js";
-import { createAgentTools } from "../agents/tools/index.js";
+import { createAgentTools, type AgentTools } from "../agents/tools/index.js";
 
 import type { LanguageModel } from "ai";
-
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    const details = error.cause ? ` | cause: ${formatError(error.cause)}` : "";
-    return `${error.name}: ${error.message}${details}`;
-  }
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return inspect(error, { depth: 3 });
-  }
-}
 
 export type BotDependencies = {
   config: Env;
@@ -39,7 +26,7 @@ export type BotDependencies = {
   summaryModel: LanguageModel;
   store: MessageStore;
   poller: TelegramLongPoller;
-  tools: ReturnType<typeof createAgentTools>;
+  tools: AgentTools;
 };
 
 export async function createBotDependencies(): Promise<BotDependencies> {
@@ -57,7 +44,6 @@ export async function createBotDependencies(): Promise<BotDependencies> {
     poller: new TelegramLongPoller({
       token: env.TELEGRAM_BOT_TOKEN,
       timeout: env.POLLING_TIMEOUT,
-      retrySeconds: env.POLLING_RETRY_SECONDS,
       initialUpdateId,
       onUpdateIdChange: saveLastUpdateId,
     }),
@@ -113,7 +99,7 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   const { store, telegramApi, config, aiSdkModel } = deps;
 
   const lastMessage = store.getLast();
-  if (!lastMessage || lastMessage.author !== "user" || !isOlderThanOneMinute(lastMessage.date)) {
+  if (!lastMessage || lastMessage.author !== "user" || !isOlderThanReplyThreshold(lastMessage.date)) {
     return;
   }
 
@@ -133,7 +119,8 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   });
 
   if (agentResult.type === "tool_sent") {
-    for (const sentMessage of agentResult.messages) {
+    for (const toolResult of agentResult.messages) {
+      const sentMessage = toolResult.message;
       if (!sentMessage.text) {
         console.warn("[maybeReply] tool envió un mensaje vacío; se ignora");
         continue;

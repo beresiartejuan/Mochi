@@ -4,6 +4,8 @@ import { searchWikipedia } from "./wikipediaTool.js";
 import { createWebSearchTool } from "./webSearchTool.js";
 import { createTelegramSendMessageTool } from "./telegramTool.js";
 
+export type AgentTools = ReturnType<typeof createAgentTools>;
+
 export function createAgentTools(config: {
   telegramApi: Api;
   chatId: ChatId;

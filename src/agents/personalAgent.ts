@@ -1,7 +1,7 @@
-import { generateText, isStepCount, type Tool } from "ai";
-import type { Api, ChatId, Message } from "node-telegram-bot-api";
-import type { LanguageModel } from "ai";
+import { generateText, isStepCount, type Tool, type LanguageModel } from "ai";
+import type { Api, ChatId } from "node-telegram-bot-api";
 import type { MessageAuthor } from "../store/messageStore.js";
+import type { TelegramMessageToolResult } from "./tools/telegramTool.js";
 
 export type AgentConfig = {
   model: LanguageModel;
@@ -14,7 +14,7 @@ export type AgentConfig = {
 
 export type AgentResult =
   | { type: "text"; text: string }
-  | { type: "tool_sent"; messages: Message[] };
+  | { type: "tool_sent"; messages: TelegramMessageToolResult[] };
 
 function buildSystemMessages(summary: string) {
   const personality =
@@ -59,27 +59,11 @@ export async function runPersonalAgent(config: AgentConfig): Promise<AgentResult
     stopWhen: isStepCount(5),
   });
 
-  const sentMessages: Message[] = [];
+  const sentMessages: TelegramMessageToolResult[] = [];
 
   for (const toolResult of result.toolResults) {
-    const typedResult = toolResult as {
-      toolName?: string;
-      output?: unknown;
-    };
-
-    if (
-      typedResult.toolName === "sendTelegramMessage" &&
-      typeof typedResult.output === "object" &&
-      typedResult.output !== null
-    ) {
-      const output = typedResult.output as { messageId: number; text: string };
-
-      sentMessages.push({
-        message_id: output.messageId,
-        chat: { id: Number(config.chatId), type: "private" },
-        date: Math.floor(Date.now() / 1000),
-        text: output.text,
-      } as Message);
+    if (toolResult.toolName === "sendTelegramMessage") {
+      sentMessages.push(toolResult.output as TelegramMessageToolResult);
     }
   }
 

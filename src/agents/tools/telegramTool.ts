@@ -1,8 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { Api } from "node-telegram-bot-api";
-import type { ChatId } from "node-telegram-bot-api";
+import type { Api, ChatId, Message } from "node-telegram-bot-api";
 import { sendTelegramMessage } from "../../telegram/telegramApi.js";
+
+export type TelegramMessageToolResult = {
+  ok: true;
+  messageId: number;
+  text: string;
+  message: Message;
+};
 
 export function createTelegramSendMessageTool(api: Api, chatId: ChatId) {
   return tool({
@@ -12,12 +18,13 @@ export function createTelegramSendMessageTool(api: Api, chatId: ChatId) {
     inputSchema: z.object({
       text: z.string().describe("Texto a enviar al chat de Telegram."),
     }),
-    execute: async ({ text }) => {
+    execute: async ({ text }): Promise<TelegramMessageToolResult> => {
       const sentMessage = await sendTelegramMessage(api, chatId, text);
       return {
         ok: true,
         messageId: sentMessage.message_id,
         text,
+        message: sentMessage,
       };
     },
   });
