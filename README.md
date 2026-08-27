@@ -10,7 +10,7 @@ Bot personal de Telegram con un agente conversacional respaldado por Ollama Clou
 - Mantiene una lista ordenada de mensajes en memoria.
 - Persiste el último `update_id` de Telegram para no reprocesar mensajes viejos tras reinicios.
 - Resume la conversación cuando el acumulado de mensajes supera ciertos umbrales.
-- Personalidad alegre, traviesa y un poquito picante, siempre en español.
+- Personalidad amable, clara y servicial; siempre responde en español salvo que se le pida otro idioma.
 
 ## Configuración
 
@@ -33,16 +33,18 @@ Variables opcionales:
 - `SUMMARY_MODEL`: modelo para resumir la conversación. Si no se define, usa `CHAT_MODEL`.
 - `SERP_API_KEY`: API key de SerpApi para búsqueda web.
 - `TAVILY_API_KEY`: API key de Tavily para búsqueda web (fallback de SerpApi).
-- `POLLING_TIMEOUT`: default `60`.
-- `POLLING_RETRY_SECONDS`: default `6`.
+- `POLLING_TIMEOUT`: default `60`. Tiempo máximo que Telegram retiene la request de `getUpdates` cuando no hay mensajes.
+- `POLLING_RETRY_SECONDS`: default `6`. Espera ante errores de polling.
+
+> **Nota sobre latencia:** `getUpdates` usa long polling, así que si no hay mensajes nuevos la request se queda esperando hasta `POLLING_TIMEOUT` segundos. Para reducir el tiempo de detección de mensajes nuevos, podés bajar `POLLING_TIMEOUT` a `5` o `10` en tu `.env`.
 
 ## Scripts
 
 ```bash
-npm run dev      # ejecuta con tsx y carga .env
-npm run build    # compila TypeScript a dist/
-npm run start    # ejecuta lo compilado
-npm run typecheck # verifica tipos sin emitir
+npm run dev         # ejecuta con tsx y carga .env
+npm run build       # compila TypeScript a dist/
+npm run start       # ejecuta lo compilado
+npm run typecheck   # verifica tipos sin emitir
 ```
 
 ## Estructura del proyecto
@@ -63,6 +65,13 @@ src/
 ├── telegram/telegramApi.ts  # funciones de la API de Telegram
 └── utils/time.ts            # helpers de tiempo
 ```
+
+## Documentación
+
+- [`docs/dominio.md`](docs/dominio.md) — entidades y flujo del bot.
+- [`docs/api-telegram.md`](docs/api-telegram.md) — endpoints de Telegram usados.
+- [`docs/ollama-cloud.md`](docs/ollama-cloud.md) — integración con Ollama Cloud vía Vercel AI SDK.
+- [`docs/tools.md`](docs/tools.md) — herramientas disponibles para el agente.
 
 ## Licencia
 
