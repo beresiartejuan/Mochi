@@ -1,4 +1,4 @@
-import { generateText, type Tool } from "ai";
+import { generateText, isStepCount, type Tool } from "ai";
 import type { Api, ChatId, Message } from "node-telegram-bot-api";
 import type { LanguageModel } from "ai";
 import type { MessageAuthor } from "../store/messageStore.js";
@@ -24,7 +24,8 @@ function buildSystemMessages(summary: string) {
     "Respondé siempre en español, salvo que el usuario te pida explícitamente otro idioma.";
 
   const toolInstructions =
-    "Para responder al usuario usá la tool `sendTelegramMessage`. " +
+    "Tienes estas herramientas disponibles: getCurrentDateTime, getDateComponents, searchWikipedia, webSearch y sendTelegramMessage. " +
+    "Para responder al usuario usá SIEMPRE la tool `sendTelegramMessage`. " +
     "Podés enviar la respuesta en una sola invocación o en varias tandas si preferís fragmentar el mensaje. " +
     "Si usás tandas, invocá `sendTelegramMessage` una vez por cada fragmento, en orden. " +
     "Cada invocación debe incluir un `text` no vacío; Telegram rechaza mensajes vacíos. " +
@@ -55,6 +56,7 @@ export async function runPersonalAgent(config: AgentConfig): Promise<AgentResult
       .join("\n\n"),
     messages,
     tools,
+    stopWhen: isStepCount(5),
   });
 
   const sentMessages: Message[] = [];
