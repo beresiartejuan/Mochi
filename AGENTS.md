@@ -17,7 +17,7 @@ Guía para agentes que trabajen en este proyecto.
 - `src/agents/`: agentes con herramientas usando Vercel AI SDK.
 - `src/config/`: envs y providers de Vercel AI.
 - `src/mappers/`: transformaciones de datos externos a tipos internos.
-- `src/store/`: estado en memoria (mensajes, resumen).
+- `src/store/`: estado en memoria (mensajes, resumen) y persistencia del último `update_id` de Telegram.
 - `src/summary/`: lógica de resumen de conversación.
 - `src/telegram/`: polling manual y funciones de la API de Telegram.
 - `src/utils/`: helpers puros sin side effects.
@@ -29,6 +29,7 @@ Guía para agentes que trabajen en este proyecto.
 - El resumen se recalcula cuando `sum(score) > 25`. El batch de mensajes a resumir frena antes de incluir una respuesta del asistente si supera score 13.
 - El bot solo responde mensajes del `CHAT_ID` autorizado, y solo si el último mensaje del usuario tiene más de 1 minuto.
 - El envío de mensajes a Telegram es una tool (`sendTelegramMessage`). El agente debe usarla para responder; si no lo hace, el bucle envía el texto libre como fallback.
+- El último `update_id` de Telegram se persiste en `.telegram-offset.json` para evitar reprocesar mensajes antiguos entre reinicios.
 - `OLLAMA_HOST=https://ollama.com` se convierte internamente a `https://api.ollama.com/api`.
 
 ## Comandos útiles

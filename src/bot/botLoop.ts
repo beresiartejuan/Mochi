@@ -7,6 +7,7 @@ import { TelegramLongPoller } from "../telegram/polling.js";
 import { isOlderThanOneMinute, sleep } from "../utils/time.js";
 import { inspect } from "node:util";
 import { telegramMessageToChatMessageInput } from "../mappers/messageMapper.js";
+import { loadLastUpdateId, saveLastUpdateId } from "../store/offsetStore.js";
 import {
   recalculateSummaryIfNeeded,
   formatMessagesForPrompt,
@@ -41,10 +42,11 @@ export type BotDependencies = {
   tools: ReturnType<typeof createAgentTools>;
 };
 
-export function createBotDependencies(): BotDependencies {
+export async function createBotDependencies(): Promise<BotDependencies> {
   const env = loadEnv();
   const provider = createAiSdkOllamaProvider(env);
   const telegramApi = createTelegramApi(env.TELEGRAM_BOT_TOKEN);
+  const initialUpdateId = await loadLastUpdateId();
 
   return {
     config: env,
@@ -56,6 +58,8 @@ export function createBotDependencies(): BotDependencies {
       token: env.TELEGRAM_BOT_TOKEN,
       timeout: env.POLLING_TIMEOUT,
       retrySeconds: env.POLLING_RETRY_SECONDS,
+      initialUpdateId,
+      onUpdateIdChange: saveLastUpdateId,
     }),
     tools: createAgentTools({
       telegramApi,

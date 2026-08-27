@@ -8,6 +8,7 @@ Bot personal de Telegram con un agente conversacional respaldado por Ollama Clou
 - Responde con un agente conversacional basado en Vercel AI SDK y Ollama Cloud.
 - Puede llamar herramientas (tools): enviar mensajes por Telegram, fecha/hora, búsqueda en Wikipedia y búsqueda web con SerpApi/Tavily.
 - Mantiene una lista ordenada de mensajes en memoria.
+- Persiste el último `update_id` de Telegram para no reprocesar mensajes viejos tras reinicios.
 - Resume la conversación cuando el acumulado de mensajes supera ciertos umbrales.
 - Personalidad alegre, traviesa y un poquito picante, siempre en español.
 
@@ -56,6 +57,7 @@ src/
 ├── config/aiSdk.ts          # provider de Vercel AI para Ollama Cloud
 ├── mappers/messageMapper.ts # conversión de mensajes de Telegram
 ├── store/messageStore.ts    # lista ordenada de mensajes en memoria
+├── store/offsetStore.ts     # persistencia del último update_id de Telegram
 ├── summary/summaryService.ts# lógica de resumen
 ├── telegram/polling.ts      # long polling manual
 ├── telegram/telegramApi.ts  # funciones de la API de Telegram

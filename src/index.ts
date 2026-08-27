@@ -1,5 +1,5 @@
 import "dotenv/config";
 import { createBotDependencies, runBotLoop } from "./bot/botLoop.js";
 
-const deps = createBotDependencies();
+const deps = await createBotDependencies();
 runBotLoop(deps);

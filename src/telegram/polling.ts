@@ -8,6 +8,8 @@ export type PollingConfig = {
   token: string;
   timeout: number;
   retrySeconds: number;
+  initialUpdateId?: number;
+  onUpdateIdChange?: (updateId: number) => void | Promise<void>;
 };
 
 export type UpdateHandler = (update: Update) => void | Promise<void>;
@@ -16,13 +18,16 @@ export class TelegramLongPoller {
   private readonly api: Api;
   private readonly timeout: number;
   private readonly retrySeconds: number;
-  private lastUpdateId = 0;
+  private readonly onUpdateIdChange?: (updateId: number) => void | Promise<void>;
+  private lastUpdateId: number;
   private running = false;
 
   constructor(config: PollingConfig) {
     this.api = createTelegramApi(config.token);
     this.timeout = config.timeout;
     this.retrySeconds = config.retrySeconds;
+    this.onUpdateIdChange = config.onUpdateIdChange;
+    this.lastUpdateId = config.initialUpdateId ?? 0;
   }
 
   async start(onUpdate: UpdateHandler): Promise<void> {
@@ -33,7 +38,6 @@ export class TelegramLongPoller {
         const updates = await this.fetchUpdates();
 
         for (const update of updates) {
-          this.lastUpdateId = update.update_id;
           await onUpdate(update);
         }
       } catch (error) {
@@ -59,10 +63,24 @@ export class TelegramLongPoller {
       throw new Error(`Unexpected Telegram response: ${JSON.stringify(response)}`);
     }
 
+    if (response.length > 0) {
+      const maxUpdateId = response[response.length - 1]!.update_id;
+      this.lastUpdateId = maxUpdateId;
+      await this.persistUpdateId(maxUpdateId);
+    }
+
     return response;
   }
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async persistUpdateId(updateId: number): Promise<void> {
+    try {
+      await this.onUpdateIdChange?.(updateId);
+    } catch (error) {
+      console.warn("[poller] no se pudo persistir el update_id:", error);
+    }
   }
 }
