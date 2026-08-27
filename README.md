@@ -1,11 +1,12 @@
 # Mochi
 
-Bot personal de Telegram con respuestas de Ollama Cloud. Hecho en TypeScript sin frameworks de bot, usando long polling manual.
+Bot personal de Telegram con un agente conversacional respaldado por Ollama Cloud. Hecho en TypeScript sin frameworks de bot, usando long polling manual y el Vercel AI SDK.
 
 ## Funcionalidades
 
 - Recibe mensajes de un chat personal autorizado por `CHAT_ID`.
-- Responde con un modelo de Ollama Cloud configurado por `CHAT_MODEL`.
+- Responde con un agente conversacional basado en Vercel AI SDK y Ollama Cloud.
+- Puede llamar herramientas (tools) para acciones como consultar la fecha actual.
 - Mantiene una lista ordenada de mensajes en memoria.
 - Resume la conversación cuando el acumulado de mensajes supera ciertos umbrales.
 - Personalidad alegre, traviesa y un poquito picante, siempre en español.
@@ -45,9 +46,10 @@ npm run typecheck # verifica tipos sin emitir
 
 ```
 src/
+├── agents/personalAgent.ts  # agente conversacional con herramientas
 ├── bot/botLoop.ts           # bucle principal del bot
 ├── config/env.ts            # validación de envs con Zod
-├── config/ollama.ts         # cliente de Ollama Cloud
+├── config/aiSdk.ts          # provider de Vercel AI para Ollama Cloud
 ├── mappers/messageMapper.ts # conversión de mensajes de Telegram
 ├── store/messageStore.ts    # lista ordenada de mensajes en memoria
 ├── summary/summaryService.ts# lógica de resumen

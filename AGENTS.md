@@ -6,7 +6,7 @@ Guía para agentes que trabajen en este proyecto.
 
 - TypeScript puro, módulos ES (`"type": "module"`).
 - Sin librería de bot de Telegram. Se usa `node-telegram-bot-api` solo como cliente HTTP de la API.
-- Ollama Cloud vía el SDK oficial `ollama` con autenticación por API key.
+- Ollama Cloud vía el SDK de Vercel AI con el provider `ollama-ai-provider-v2`.
 - Variables de entorno validadas con Zod en `src/config/env.ts`.
 - `SUMMARY_MODEL` puede apuntar a un modelo distinto de `CHAT_MODEL`; si no se define, se usa `CHAT_MODEL`.
 - Importar archivos del proyecto con extensión `.js`, no `.ts`.
@@ -14,7 +14,8 @@ Guía para agentes que trabajen en este proyecto.
 ## Estructura de carpetas
 
 - `src/bot/`: orquestación del bucle del bot.
-- `src/config/`: envs y agente de Ollama.
+- `src/agents/`: agentes con herramientas usando Vercel AI SDK.
+- `src/config/`: envs y providers de Vercel AI.
 - `src/mappers/`: transformaciones de datos externos a tipos internos.
 - `src/store/`: estado en memoria (mensajes, resumen).
 - `src/summary/`: lógica de resumen de conversación.

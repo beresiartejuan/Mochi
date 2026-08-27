@@ -1,8 +1,6 @@
 import type { Api } from "node-telegram-bot-api";
-import type { Ollama } from "ollama";
-import { chatWithOllama } from "../config/ollama.js";
 import { loadEnv, type Env } from "../config/env.js";
-import { createOllamaAgent } from "../config/ollama.js";
+import { createAiSdkOllamaProvider } from "../config/aiSdk.js";
 import { MessageStore, sumScores, type ChatMessage } from "../store/messageStore.js";
 import { createTelegramApi, sendTelegramMessage, extractMessageFromUpdate } from "../telegram/telegramApi.js";
 import { TelegramLongPoller } from "../telegram/polling.js";
@@ -14,22 +12,28 @@ import {
   SUMMARY_BATCH_THRESHOLD,
   SUMMARY_THRESHOLD_TOTAL,
 } from "../summary/summaryService.js";
+import { runPersonalAgent } from "../agents/personalAgent.js";
+
+import type { LanguageModel } from "ai";
 
 export type BotDependencies = {
   config: Env;
   telegramApi: Api;
-  ollamaAgent: Ollama;
+  aiSdkModel: LanguageModel;
+  summaryModel: LanguageModel;
   store: MessageStore;
   poller: TelegramLongPoller;
 };
 
 export function createBotDependencies(): BotDependencies {
   const env = loadEnv();
+  const provider = createAiSdkOllamaProvider(env);
 
   return {
     config: env,
     telegramApi: createTelegramApi(env.TELEGRAM_BOT_TOKEN),
-    ollamaAgent: createOllamaAgent(env),
+    aiSdkModel: provider(env.CHAT_MODEL),
+    summaryModel: provider(env.SUMMARY_MODEL ?? env.CHAT_MODEL),
     store: new MessageStore(),
     poller: new TelegramLongPoller({
       token: env.TELEGRAM_BOT_TOKEN,
@@ -53,7 +57,7 @@ export async function fetchAndStoreUpdates(deps: BotDependencies): Promise<void>
 }
 
 export async function maybeRecalculateSummary(deps: BotDependencies): Promise<boolean> {
-  const { store, ollamaAgent, config } = deps;
+  const { store, summaryModel } = deps;
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const totalScore = sumScores(messagesNotInSummary);
 
@@ -64,8 +68,7 @@ export async function maybeRecalculateSummary(deps: BotDependencies): Promise<bo
   const result = await recalculateSummaryIfNeeded({
     messagesNotInSummary,
     currentSummary: store.getSummary(),
-    model: config.SUMMARY_MODEL ?? config.CHAT_MODEL,
-    agent: ollamaAgent,
+    model: summaryModel,
     totalThreshold: SUMMARY_THRESHOLD_TOTAL,
     batchThreshold: SUMMARY_BATCH_THRESHOLD,
   });
@@ -80,7 +83,7 @@ export async function maybeRecalculateSummary(deps: BotDependencies): Promise<bo
 }
 
 export async function maybeReply(deps: BotDependencies): Promise<void> {
-  const { store, telegramApi, ollamaAgent, config } = deps;
+  const { store, telegramApi, config, aiSdkModel } = deps;
 
   const lastMessage = store.getLast();
   if (!lastMessage || lastMessage.author !== "user" || !isOlderThanOneMinute(lastMessage.date)) {
@@ -93,12 +96,11 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const ollamaMessages = formatMessagesForPrompt(messagesNotInSummary, pendingUserMessages);
 
-  const replyText = await chatWithOllama(
-    ollamaAgent,
-    config.CHAT_MODEL,
-    store.getSummary(),
-    ollamaMessages,
-  );
+  const replyText = await runPersonalAgent({
+    model: aiSdkModel,
+    summary: store.getSummary(),
+    messages: ollamaMessages,
+  });
 
   const sentMessage = await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), replyText);
 
@@ -110,6 +112,7 @@ export async function runBotLoop(deps: BotDependencies): Promise<void> {
 
   console.log("Bot starting...", {
     CHAT_MODEL: config.CHAT_MODEL,
+    SUMMARY_MODEL: config.SUMMARY_MODEL ?? config.CHAT_MODEL,
     CHAT_ID: config.CHAT_ID.toString(),
   });
 
