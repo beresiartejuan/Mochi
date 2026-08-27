@@ -27,10 +27,11 @@ function buildSystemMessages(summary: string) {
     "Para responder al usuario usá la tool `sendTelegramMessage`. " +
     "Podés enviar la respuesta en una sola invocación o en varias tandas si preferís fragmentar el mensaje. " +
     "Si usás tandas, invocá `sendTelegramMessage` una vez por cada fragmento, en orden. " +
+    "Cada invocación debe incluir un `text` no vacío; Telegram rechaza mensajes vacíos. " +
     "No devuelvas texto libre salvo en casos de error crítico del agente. " +
     "Si el usuario pide información externa (web, wikipedia, fecha), primero invocá la tool correspondiente, " +
     "analizá el resultado y luego respondé al usuario mediante `sendTelegramMessage`. " +
-    "Podés combinar tools de búsqueda con múltiples envíos de Telegram en la misma corrida.";
+    "Podés combinar tools de búsqueda con múltiples envíos de Telegram en la misma corrida."
 
   const contextMessage =
     summary.trim().length > 0

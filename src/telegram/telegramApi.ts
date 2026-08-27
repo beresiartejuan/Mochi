@@ -69,10 +69,15 @@ export function extractMessageFromUpdate(update: Update): Message | undefined {
 }
 
 export async function sendTelegramMessage(api: Api, chatId: ChatId, text: string): Promise<Message> {
-  const response = await api.sendMessage({ chat_id: chatId, text });
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+    throw new Error(`[sendTelegramMessage] texto vacío para chat_id=${chatId}`);
+  }
+
+  const response = await api.sendMessage({ chat_id: chatId, text: trimmedText });
 
   if (!response || typeof response.message_id !== "number") {
-    throw new Error(`Unexpected sendMessage response: ${JSON.stringify(response)}`);
+    throw new Error(`[sendTelegramMessage] respuesta inesperada: ${JSON.stringify(response)}`);
   }
 
   return response;

@@ -5,6 +5,7 @@ import { MessageStore, sumScores, type ChatMessage } from "../store/messageStore
 import { createTelegramApi, sendTelegramMessage, extractMessageFromUpdate } from "../telegram/telegramApi.js";
 import { TelegramLongPoller } from "../telegram/polling.js";
 import { isOlderThanOneMinute, sleep } from "../utils/time.js";
+import { inspect } from "node:util";
 import { telegramMessageToChatMessageInput } from "../mappers/messageMapper.js";
 import {
   recalculateSummaryIfNeeded,
@@ -16,6 +17,19 @@ import { runPersonalAgent } from "../agents/personalAgent.js";
 import { createAgentTools } from "../agents/tools/index.js";
 
 import type { LanguageModel } from "ai";
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    const details = error.cause ? ` | cause: ${formatError(error.cause)}` : "";
+    return `${error.name}: ${error.message}${details}`;
+  }
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return inspect(error, { depth: 3 });
+  }
+}
 
 export type BotDependencies = {
   config: Env;
@@ -116,8 +130,17 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
 
   if (agentResult.type === "tool_sent") {
     for (const sentMessage of agentResult.messages) {
+      if (!sentMessage.text) {
+        console.warn("[maybeReply] tool envió un mensaje vacío; se ignora");
+        continue;
+      }
       store.add(telegramMessageToChatMessageInput(sentMessage, "assistant"));
     }
+    return;
+  }
+
+  if (!agentResult.text.trim()) {
+    console.warn("[maybeReply] agente devolvió texto vacío; no se envía respuesta");
     return;
   }
 
@@ -144,7 +167,7 @@ export async function runBotLoop(deps: BotDependencies): Promise<void> {
 
       await maybeReply(deps);
     } catch (error) {
-      console.error("Main loop error:", error instanceof Error ? error.message : error);
+      console.error("[main-loop] error:", formatError(error));
     }
 
     await sleep(10_000);
