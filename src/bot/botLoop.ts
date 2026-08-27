@@ -4,7 +4,7 @@ import { createAiSdkOllamaProvider } from "../config/aiSdk.js";
 import { MessageStore, sumScores, type ChatMessage } from "../store/messageStore.js";
 import { createTelegramApi, sendTelegramMessage, extractMessageFromUpdate } from "../telegram/telegramApi.js";
 import { TelegramLongPoller } from "../telegram/polling.js";
-import { isOlderThanOneMinute, sleep } from "../utils/time.js";
+import { isOlderThanOneMinute } from "../utils/time.js";
 import { inspect } from "node:util";
 import { telegramMessageToChatMessageInput } from "../mappers/messageMapper.js";
 import { loadLastUpdateId, saveLastUpdateId } from "../store/offsetStore.js";
@@ -173,7 +173,5 @@ export async function runBotLoop(deps: BotDependencies): Promise<void> {
     } catch (error) {
       console.error("[main-loop] error:", formatError(error));
     }
-
-    await sleep(10_000);
   }
 }
