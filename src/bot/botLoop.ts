@@ -55,14 +55,16 @@ export async function fetchAndStoreUpdates(deps: BotDependencies): Promise<void>
 export async function maybeRecalculateSummary(deps: BotDependencies): Promise<boolean> {
   const { store, ollamaAgent, config } = deps;
   const messagesNotInSummary = store.getMessagesNotInSummary();
-  const totalScore = sumScores(messagesNotInSummary);
+  const pendingIds = new Set(store.takeLastUnansweredFromUser().map((message) => message.id));
+  const messagesToSummarize = messagesNotInSummary.filter((message) => !pendingIds.has(message.id));
+  const totalScore = sumScores(messagesToSummarize);
 
   if (totalScore <= SUMMARY_THRESHOLD_TOTAL) {
     return false;
   }
 
   const result = await recalculateSummaryIfNeeded({
-    messagesNotInSummary,
+    messagesNotInSummary: messagesToSummarize,
     currentSummary: store.getSummary(),
     model: config.CHAT_MODEL,
     agent: ollamaAgent,
