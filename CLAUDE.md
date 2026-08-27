@@ -1,1 +1,1 @@
-AGENTS.md
+/home/beresiarte/code/me/mochi/AGENTS.md

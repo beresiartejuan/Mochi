@@ -29,7 +29,7 @@ El bucle principal (`runBotLoop`) itera continuamente, sin sleeps artificiales e
 1. Se fetchean updates de Telegram mediante `getUpdates` con long polling.
 2. Se filtran mensajes del `CHAT_ID` autorizado y se agregan al store.
 3. Si los mensajes sin resumir suman más de `25` puntos, se recalcula el resumen y se saltea el resto de la vuelta.
-4. Si el último mensaje es del usuario y tiene más de `1` minuto, se responde.
+4. Si el último mensaje es del usuario y tiene más de `30` segundos, se responde.
    - Se extraen los mensajes pendientes del usuario (desde el último mensaje del asistente hacia atrás).
    - Se arma el prompt con resumen + mensajes anteriores no resumidos + mensajes pendientes.
    - El agente ejecuta `generateText` con hasta `5` steps.

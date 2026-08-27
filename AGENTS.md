@@ -27,7 +27,7 @@ Guía para agentes que trabajen en este proyecto.
 - `MessageStore` no es Singleton. Se crea una instancia en `createBotDependencies()` y se pasa explícitamente.
 - El poller expone `fetchUpdates()` público para que el bucle controle el timing.
 - El resumen se recalcula cuando `sum(score) > 25`. El batch de mensajes a resumir frena antes de incluir una respuesta del asistente si supera score 13.
-- El bot solo responde mensajes del `CHAT_ID` autorizado, y solo si el último mensaje del usuario tiene más de 1 minuto.
+- El bot solo responde mensajes del `CHAT_ID` autorizado, y solo si el último mensaje del usuario tiene más de 30 segundos.
 - El envío de mensajes a Telegram es una tool (`sendTelegramMessage`). El agente debe usarla para responder; si no lo hace, el bucle envía el texto libre como fallback.
 - El último `update_id` de Telegram se persiste en `.telegram-offset.json` para evitar reprocesar mensajes antiguos entre reinicios.
 - `OLLAMA_HOST=https://ollama.com` se convierte internamente a `https://api.ollama.com/api`.
