@@ -1,8 +1,7 @@
 import { generateText, tool, type Tool } from "ai";
 import { z } from "zod";
-import type { MessageAuthor } from "../store/messageStore.js";
-
 import type { LanguageModel } from "ai";
+import type { MessageAuthor } from "../store/messageStore.js";
 
 export type AgentConfig = {
   model: LanguageModel;
@@ -51,13 +50,3 @@ export async function runPersonalAgent(config: AgentConfig): Promise<string> {
 
   return result.text;
 }
-
-export const defaultPersonalTools = {
-  getCurrentDate: tool({
-    description: "Obtiene la fecha y hora actual del sistema.",
-    inputSchema: z.object({}),
-    execute: async () => {
-      return new Date().toISOString();
-    },
-  }),
-};

@@ -13,6 +13,7 @@ import {
   SUMMARY_THRESHOLD_TOTAL,
 } from "../summary/summaryService.js";
 import { runPersonalAgent } from "../agents/personalAgent.js";
+import { createAgentTools } from "../agents/tools/index.js";
 
 import type { LanguageModel } from "ai";
 
@@ -23,6 +24,7 @@ export type BotDependencies = {
   summaryModel: LanguageModel;
   store: MessageStore;
   poller: TelegramLongPoller;
+  tools: ReturnType<typeof createAgentTools>;
 };
 
 export function createBotDependencies(): BotDependencies {
@@ -39,6 +41,10 @@ export function createBotDependencies(): BotDependencies {
       token: env.TELEGRAM_BOT_TOKEN,
       timeout: env.POLLING_TIMEOUT,
       retrySeconds: env.POLLING_RETRY_SECONDS,
+    }),
+    tools: createAgentTools({
+      serpApiKey: env.SERP_API_KEY,
+      tavilyApiKey: env.TAVILY_API_KEY,
     }),
   };
 }
@@ -100,6 +106,7 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
     model: aiSdkModel,
     summary: store.getSummary(),
     messages: ollamaMessages,
+    tools: deps.tools,
   });
 
   const sentMessage = await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), replyText);
