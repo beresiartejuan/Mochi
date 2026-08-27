@@ -14,7 +14,7 @@ export type AgentConfig = {
 
 export type AgentResult =
   | { type: "text"; text: string }
-  | { type: "tool_sent"; text: string; sentMessage: Message };
+  | { type: "tool_sent"; messages: Message[] };
 
 function buildSystemMessages(summary: string) {
   const personality =
@@ -24,11 +24,13 @@ function buildSystemMessages(summary: string) {
     "Respondé siempre en español, salvo que el usuario te pida explícitamente otro idioma.";
 
   const toolInstructions =
-    "Para responder al usuario SIEMPRE usá la tool `sendTelegramMessage`. " +
+    "Para responder al usuario usá la tool `sendTelegramMessage`. " +
+    "Podés enviar la respuesta en una sola invocación o en varias tandas si preferís fragmentar el mensaje. " +
+    "Si usás tandas, invocá `sendTelegramMessage` una vez por cada fragmento, en orden. " +
     "No devuelvas texto libre salvo en casos de error crítico del agente. " +
     "Si el usuario pide información externa (web, wikipedia, fecha), primero invocá la tool correspondiente, " +
     "analizá el resultado y luego respondé al usuario mediante `sendTelegramMessage`. " +
-    "Podés usar varias tools en una misma corrida.";
+    "Podés combinar tools de búsqueda con múltiples envíos de Telegram en la misma corrida.";
 
   const contextMessage =
     summary.trim().length > 0
@@ -54,22 +56,32 @@ export async function runPersonalAgent(config: AgentConfig): Promise<AgentResult
     tools,
   });
 
-  for (const toolCall of result.toolCalls) {
-    if (toolCall.toolName === "sendTelegramMessage") {
-      const input = toolCall.input as { text?: string };
-      const text = input.text ?? result.text;
+  const sentMessages: Message[] = [];
 
-      return {
-        type: "tool_sent",
-        text,
-        sentMessage: {
-          message_id: -1,
-          chat: { id: Number(config.chatId), type: "private" },
-          date: Math.floor(Date.now() / 1000),
-          text,
-        } as Message,
-      };
+  for (const toolResult of result.toolResults) {
+    const typedResult = toolResult as {
+      toolName?: string;
+      output?: unknown;
+    };
+
+    if (
+      typedResult.toolName === "sendTelegramMessage" &&
+      typeof typedResult.output === "object" &&
+      typedResult.output !== null
+    ) {
+      const output = typedResult.output as { messageId: number; text: string };
+
+      sentMessages.push({
+        message_id: output.messageId,
+        chat: { id: Number(config.chatId), type: "private" },
+        date: Math.floor(Date.now() / 1000),
+        text: output.text,
+      } as Message);
     }
+  }
+
+  if (sentMessages.length > 0) {
+    return { type: "tool_sent", messages: sentMessages };
   }
 
   return { type: "text", text: result.text };

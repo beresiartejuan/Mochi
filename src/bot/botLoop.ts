@@ -115,7 +115,9 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   });
 
   if (agentResult.type === "tool_sent") {
-    store.add(telegramMessageToChatMessageInput(agentResult.sentMessage, "assistant"));
+    for (const sentMessage of agentResult.messages) {
+      store.add(telegramMessageToChatMessageInput(sentMessage, "assistant"));
+    }
     return;
   }
 

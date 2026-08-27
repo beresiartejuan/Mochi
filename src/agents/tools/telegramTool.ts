@@ -7,7 +7,8 @@ import { sendTelegramMessage } from "../../telegram/telegramApi.js";
 export function createTelegramSendMessageTool(api: Api, chatId: ChatId) {
   return tool({
     description:
-      "Envía un mensaje al chat autorizado de Telegram. Usalo siempre que quieras responder al usuario en lugar de devolver texto libre.",
+      "Envía un mensaje al chat autorizado de Telegram. Usalo siempre que quieras responder al usuario en lugar de devolver texto libre. " +
+      "Podés invocar esta tool varias veces en la misma corrida para enviar la respuesta en tandas de mensajes cortos.",
     inputSchema: z.object({
       text: z.string().describe("Texto a enviar al chat de Telegram."),
     }),
