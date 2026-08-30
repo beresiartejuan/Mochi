@@ -27,5 +27,9 @@ export function createTelegramSendMessageTool(api: Api, chatId: ChatId) {
         message: sentMessage,
       };
     },
+    toModelOutput: () => ({
+      type: "content" as const,
+      value: [{ type: "text" as const, text: "Mensaje enviado." }],
+    }),
   });
 }

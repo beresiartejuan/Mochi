@@ -17,7 +17,7 @@ export function createMemoryTools(memoryStore: MemoryStore) {
       expiresAt: z
         .string()
         .optional()
-        .describe("Fecha de expiración opcional en ISO 8601 para datos efímeros (ej: '2026-09-01T00:00:00Z')."),
+        .describe("Fecha de expiración opcional en ISO 8601 para datos transitorios (ej: alquiler temporal hasta '2026-09-01'). Es raro usarla."),
     }),
     execute: async ({ content, kind, expiresAt }) => {
       const expiresDate = expiresAt ? new Date(expiresAt) : null;
@@ -62,7 +62,7 @@ export function createMemoryTools(memoryStore: MemoryStore) {
     }),
     execute: async ({ query }) => {
       const removed = await memoryStore.remove(query);
-      return { ok: true, removed };
+      return { ok: true, deleted: removed };
     },
   });
 

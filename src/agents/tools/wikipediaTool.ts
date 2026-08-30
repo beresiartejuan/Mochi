@@ -3,9 +3,11 @@ import { z } from "zod";
 import { page, search } from "wikipedia-api";
 
 export const searchWikipedia = tool({
-  description: "Busca un artículo en Wikipedia y devuelve un resumen del mismo. Solo soporta inglés por defecto.",
+  description:
+    "Busca un artículo en Wikipedia (en inglés) y devuelve su título, resumen y URL. " +
+    "Para información actualizada o de actualidad usá webSearch en su lugar.",
   inputSchema: z.object({
-    query: z.string().describe("Tema o título a buscar en Wikipedia"),
+    query: z.string().describe("Tema o título a buscar en Wikipedia, en inglés"),
   }),
   execute: async ({ query }) => {
     try {

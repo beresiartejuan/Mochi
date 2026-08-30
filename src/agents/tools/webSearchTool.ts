@@ -44,27 +44,27 @@ export function createWebSearchTool(config: { serpApiKey?: string | undefined; t
     }),
     execute: async ({ query }) => {
       if (!config.serpApiKey && !config.tavilyApiKey) {
-        return { error: "No hay proveedores de búsqueda configurados." };
+        return { ok: false, results: "", error: "No hay proveedores de búsqueda configurados." };
       }
 
       if (config.serpApiKey) {
         try {
           const result = await searchWithSerpapi(query, config.serpApiKey);
-          return { provider: "serpapi", result };
+          return { ok: true, provider: "serpapi", results: result };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (!config.tavilyApiKey) {
-            return { error: `SerpApi falló y no hay fallback configurado: ${message}` };
+            return { ok: false, results: "", error: `SerpApi falló y no hay fallback configurado: ${message}` };
           }
         }
       }
 
       try {
         const result = await searchWithTavily(query, config.tavilyApiKey!);
-        return { provider: "tavily", result };
+        return { ok: true, provider: "tavily", results: result };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return { error: `Tavily también falló: ${message}` };
+        return { ok: false, results: "", error: `Tavily también falló: ${message}` };
       }
     },
   });
