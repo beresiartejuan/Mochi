@@ -11,6 +11,7 @@ import type { TelegramMessageToolResult } from "./tools/telegramTool.js";
 export type AgentConfig = {
   model: LanguageModel;
   summary: string;
+  memories: string[];
   messages: Array<{ role: MessageAuthor; content: string }>;
   tools: Record<string, Tool>;
   telegramApi: Api;
@@ -21,25 +22,31 @@ export type AgentResult =
   | { type: "text"; text: string }
   | { type: "tool_sent"; messages: TelegramMessageToolResult[] };
 
-function buildSystemMessages(summary: string) {
-  return [
-    { role: "system", content: PERSONALITY_SYSTEM_PROMPT },
-    { role: "system", content: TOOL_INSTRUCTIONS_SYSTEM_PROMPT },
-    { role: "system", content: buildContextSystemPrompt(summary) },
-  ] as const;
+function buildSystemMessages(summary: string, memories: string[]) {
+  const parts = [
+    PERSONALITY_SYSTEM_PROMPT,
+    TOOL_INSTRUCTIONS_SYSTEM_PROMPT,
+    buildContextSystemPrompt(summary),
+  ];
+
+  if (memories.length > 0) {
+    parts.push(
+      `Datos relevantes de tu memoria persistente para este mensaje:\n${memories.map((m) => `- ${m}`).join("\n")}`,
+    );
+  }
+
+  return parts.join("\n\n");
 }
 
 export async function runPersonalAgent(config: AgentConfig): Promise<AgentResult> {
-  const { model, summary, messages, tools } = config;
+  const { model, summary, memories, messages, tools } = config;
 
   const result = await generateText({
     model,
-    system: buildSystemMessages(summary)
-      .map((message) => message.content)
-      .join("\n\n"),
+    system: buildSystemMessages(summary, memories),
     messages,
     tools,
-    stopWhen: isStepCount(5),
+    stopWhen: isStepCount(10),
   });
 
   const sentMessages: TelegramMessageToolResult[] = [];

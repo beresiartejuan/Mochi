@@ -8,6 +8,10 @@ import { isOlderThanReplyThreshold } from "../utils/time.js";
 import { formatError } from "../utils/error.js";
 import { telegramMessageToChatMessageInput } from "../mappers/messageMapper.js";
 import { loadLastUpdateId, saveLastUpdateId } from "../store/offsetStore.js";
+import { openMemoryDb } from "../store/memoryDb.js";
+import { MemoryStore } from "../store/memoryStore.js";
+import { ReminderStore } from "../store/reminderStore.js";
+import { EmbeddingService } from "../config/embeddingService.js";
 import {
   recalculateSummaryIfNeeded,
   formatMessagesForPrompt,
@@ -25,6 +29,8 @@ export type BotDependencies = {
   aiSdkModel: LanguageModel;
   summaryModel: LanguageModel;
   store: MessageStore;
+  memoryStore: MemoryStore;
+  reminderStore: ReminderStore;
   poller: TelegramLongPoller;
   tools: AgentTools;
 };
@@ -34,6 +40,11 @@ export async function createBotDependencies(): Promise<BotDependencies> {
   const provider = createAiSdkOllamaProvider(env);
   const telegramApi = createTelegramApi(env.TELEGRAM_BOT_TOKEN);
   const initialUpdateId = await loadLastUpdateId();
+  const memoryDb = await openMemoryDb(env.MEMORY_DB_PATH);
+  const embeddingService = new EmbeddingService();
+  const memoryStore = new MemoryStore(memoryDb, embeddingService);
+  const reminderStore = new ReminderStore(memoryDb);
+  await runMemoryMaintenance(memoryStore);
 
   return {
     config: env,
@@ -41,6 +52,8 @@ export async function createBotDependencies(): Promise<BotDependencies> {
     aiSdkModel: provider(env.CHAT_MODEL),
     summaryModel: provider(env.SUMMARY_MODEL ?? env.CHAT_MODEL),
     store: new MessageStore(),
+    memoryStore,
+    reminderStore,
     poller: new TelegramLongPoller({
       token: env.TELEGRAM_BOT_TOKEN,
       timeout: env.POLLING_TIMEOUT,
@@ -50,6 +63,9 @@ export async function createBotDependencies(): Promise<BotDependencies> {
     tools: createAgentTools({
       telegramApi,
       chatId: env.CHAT_ID.toString(),
+      workspaceDir: env.WORKSPACE_DIR,
+      memoryStore,
+      reminderStore,
       serpApiKey: env.SERP_API_KEY,
       tavilyApiKey: env.TAVILY_API_KEY,
     }),
@@ -70,7 +86,7 @@ export async function fetchAndStoreUpdates(deps: BotDependencies): Promise<void>
 }
 
 export async function maybeRecalculateSummary(deps: BotDependencies): Promise<boolean> {
-  const { store, summaryModel } = deps;
+  const { store, summaryModel, memoryStore } = deps;
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const totalScore = sumScores(messagesNotInSummary);
 
@@ -89,6 +105,7 @@ export async function maybeRecalculateSummary(deps: BotDependencies): Promise<bo
   if (result.type === "recalculated") {
     store.setSummary(result.newSummary);
     store.markAsInSummary(result.summarizedMessageIds);
+    await persistSummary(memoryStore, result.newSummary);
     return true;
   }
 
@@ -106,12 +123,14 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   const pendingUserMessages = store.takePendingUserMessages();
   if (pendingUserMessages.length === 0) return;
 
+  const proactiveMemories = await recallProactiveMemories(deps.memoryStore, pendingUserMessages);
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const ollamaMessages = formatMessagesForPrompt(messagesNotInSummary, pendingUserMessages);
 
   const agentResult = await runPersonalAgent({
     model: aiSdkModel,
     summary: store.getSummary(),
+    memories: proactiveMemories,
     messages: ollamaMessages,
     tools: deps.tools,
     telegramApi,
@@ -140,13 +159,87 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   store.add(telegramMessageToChatMessageInput(sentMessage, "assistant"));
 }
 
+async function runMemoryMaintenance(memoryStore: MemoryStore): Promise<void> {
+  try {
+    const purged = await memoryStore.purgeExpired();
+    const missing = await memoryStore.countMissingEmbeddings();
+
+    if (missing > 0) {
+      console.log(`[memory] backfill de embeddings para ${missing} memorias...`);
+      const backfilled = await memoryStore.backfillEmbeddings();
+      console.log(`[memory] backfill completado: ${backfilled}/${missing}`);
+    }
+
+    if (purged > 0) console.log(`[memory] purgadas ${purged} memorias expiradas`);
+  } catch (error) {
+    console.warn("[memory] mantenimiento falló:", formatError(error));
+  }
+}
+
+async function loadPersistedSummary(store: MessageStore, memoryStore: MemoryStore): Promise<void> {
+  const summary = await memoryStore.getState("summary");
+  if (summary) store.setSummary(summary);
+}
+
+async function persistSummary(memoryStore: MemoryStore, summary: string): Promise<void> {
+  await memoryStore.setState("summary", summary);
+}
+
+async function recallProactiveMemories(
+  memoryStore: MemoryStore,
+  pendingUserMessages: Array<{ content: string }>,
+): Promise<string[]> {
+  try {
+    const query = pendingUserMessages
+      .map((message) => message.content)
+      .join(" ")
+      .slice(0, 500);
+
+    if (!query.trim()) return [];
+
+    const memories = await memoryStore.search(query, 5);
+    return memories.map((memory) => memory.content);
+  } catch (error) {
+    console.warn("[recallProactive] no se pudo recuperar memorias:", formatError(error));
+    return [];
+  }
+}
+
+async function deliverDueReminders(deps: BotDependencies): Promise<void> {
+  const { reminderStore, telegramApi, config } = deps;
+
+  const due = await reminderStore.getDue();
+  if (due.length === 0) return;
+
+  const now = new Date();
+
+  for (const reminder of due) {
+    const text = `⏰ Recordatorio: ${reminder.content}`;
+    try {
+      await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), text);
+      await reminderStore.markFired(reminder.id, now);
+
+      if (reminder.recurrence) {
+        await reminderStore.advanceRecurrence(reminder.id, reminder.dueAt, reminder.recurrence);
+      } else {
+        await reminderStore.deactivate(reminder.id);
+      }
+    } catch (error) {
+      console.error("[deliverDueReminders] error enviando recordatorio:", formatError(error));
+    }
+  }
+}
+
 export async function runBotLoop(deps: BotDependencies): Promise<void> {
   const { config } = deps;
+
+  await loadPersistedSummary(deps.store, deps.memoryStore);
 
   console.log("Bot starting...", {
     CHAT_MODEL: config.CHAT_MODEL,
     SUMMARY_MODEL: config.SUMMARY_MODEL ?? config.CHAT_MODEL,
     CHAT_ID: config.CHAT_ID.toString(),
+    MEMORY_DB_PATH: config.MEMORY_DB_PATH,
   });
 
   while (true) {
@@ -156,6 +249,7 @@ export async function runBotLoop(deps: BotDependencies): Promise<void> {
       const summaryRecalculated = await maybeRecalculateSummary(deps);
       if (summaryRecalculated) continue;
 
+      await deliverDueReminders(deps);
       await maybeReply(deps);
     } catch (error) {
       console.error("[main-loop] error:", formatError(error));
