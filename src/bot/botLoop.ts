@@ -1,7 +1,7 @@
 import type { Api } from "node-telegram-bot-api";
 import { loadEnv, type Env } from "../config/env.js";
 import { createAiSdkOllamaProvider } from "../config/aiSdk.js";
-import { MessageStore, sumScores } from "../store/messageStore.js";
+import { MessageStore, sumScores, type MessageAuthor } from "../store/messageStore.js";
 import { createTelegramApi, sendTelegramMessage, extractMessageFromUpdate } from "../telegram/telegramApi.js";
 import { TelegramLongPoller } from "../telegram/polling.js";
 import { isOlderThanReplyThreshold } from "../utils/time.js";
@@ -20,6 +20,10 @@ import {
 } from "../summary/summaryService.js";
 import { runPersonalAgent } from "../agents/personalAgent.js";
 import { createAgentTools, type AgentTools } from "../agents/tools/index.js";
+import { runReminderRunner } from "./reminderRunner.js";
+import { ProfileStore } from "../profile/profileStore.js";
+import { updateProfileFromMessages, PROFILE_MARKER_KEY } from "../profile/profileService.js";
+import { buildProfilePrompt } from "../profile/profilePrompt.js";
 
 import type { LanguageModel } from "ai";
 
@@ -28,9 +32,11 @@ export type BotDependencies = {
   telegramApi: Api;
   aiSdkModel: LanguageModel;
   summaryModel: LanguageModel;
+  profileModel: LanguageModel;
   store: MessageStore;
   memoryStore: MemoryStore;
   reminderStore: ReminderStore;
+  profileStore: ProfileStore;
   poller: TelegramLongPoller;
   tools: AgentTools;
 };
@@ -44,6 +50,7 @@ export async function createBotDependencies(): Promise<BotDependencies> {
   const embeddingService = new EmbeddingService();
   const memoryStore = new MemoryStore(memoryDb, embeddingService);
   const reminderStore = new ReminderStore(memoryDb);
+  const profileStore = new ProfileStore(memoryDb);
   await runMemoryMaintenance(memoryStore);
 
   return {
@@ -51,9 +58,11 @@ export async function createBotDependencies(): Promise<BotDependencies> {
     telegramApi,
     aiSdkModel: provider(env.CHAT_MODEL),
     summaryModel: provider(env.SUMMARY_MODEL ?? env.CHAT_MODEL),
+    profileModel: provider(env.PROFILE_MODEL ?? env.SUMMARY_MODEL ?? env.CHAT_MODEL),
     store: new MessageStore(),
     memoryStore,
     reminderStore,
+    profileStore,
     poller: new TelegramLongPoller({
       token: env.TELEGRAM_BOT_TOKEN,
       timeout: env.POLLING_TIMEOUT,
@@ -113,7 +122,7 @@ export async function maybeRecalculateSummary(deps: BotDependencies): Promise<bo
 }
 
 export async function maybeReply(deps: BotDependencies): Promise<void> {
-  const { store, telegramApi, config, aiSdkModel } = deps;
+  const { store, telegramApi, config, aiSdkModel, profileStore } = deps;
 
   const lastMessage = store.getLast();
   if (!lastMessage || lastMessage.author !== "user" || !isOlderThanReplyThreshold(lastMessage.date)) {
@@ -124,6 +133,7 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
   if (pendingUserMessages.length === 0) return;
 
   const proactiveMemories = await recallProactiveMemories(deps.memoryStore, pendingUserMessages);
+  const profilePrompt = await buildProfileSystemPrompt(profileStore);
   const messagesNotInSummary = store.getMessagesNotInSummary();
   const ollamaMessages = formatMessagesForPrompt(messagesNotInSummary, pendingUserMessages);
 
@@ -131,6 +141,7 @@ export async function maybeReply(deps: BotDependencies): Promise<void> {
     model: aiSdkModel,
     summary: store.getSummary(),
     memories: proactiveMemories,
+    profile: profilePrompt,
     messages: ollamaMessages,
     tools: deps.tools,
     telegramApi,
@@ -206,27 +217,48 @@ async function recallProactiveMemories(
 }
 
 async function deliverDueReminders(deps: BotDependencies): Promise<void> {
-  const { reminderStore, telegramApi, config } = deps;
+  await runReminderRunner({
+    reminderStore: deps.reminderStore,
+    sendTelegramMessage: (chatId, text) => sendTelegramMessage(deps.telegramApi, chatId, text),
+    chatId: deps.config.CHAT_ID.toString(),
+  });
+}
 
-  const due = await reminderStore.getDue();
-  if (due.length === 0) return;
+async function buildProfileSystemPrompt(profileStore: ProfileStore): Promise<string> {
+  try {
+    const sections = await profileStore.getAllSections();
+    return buildProfilePrompt(sections);
+  } catch (error) {
+    console.warn("[maybeReply] no se pudo cargar el perfil:", formatError(error));
+    return "";
+  }
+}
 
-  const now = new Date();
+async function maybeUpdateProfile(deps: BotDependencies): Promise<void> {
+  const { profileStore, profileModel, memoryStore, store } = deps;
 
-  for (const reminder of due) {
-    const text = `⏰ Recordatorio: ${reminder.content}`;
-    try {
-      await sendTelegramMessage(telegramApi, config.CHAT_ID.toString(), text);
-      await reminderStore.markFired(reminder.id, now);
+  try {
+    const lastProcessedRaw = await memoryStore.getState(PROFILE_MARKER_KEY);
+    const lastProcessedId = (lastProcessedRaw ?? "").trim() || null;
+    const allMessages = store.getAll();
+    const markerIndex = lastProcessedId
+      ? allMessages.findIndex((message) => message.id === lastProcessedId)
+      : -1;
+    const newMessages = markerIndex >= 0 ? allMessages.slice(markerIndex + 1) : allMessages.slice(-20);
 
-      if (reminder.recurrence) {
-        await reminderStore.advanceRecurrence(reminder.id, reminder.dueAt, reminder.recurrence);
-      } else {
-        await reminderStore.deactivate(reminder.id);
-      }
-    } catch (error) {
-      console.error("[deliverDueReminders] error enviando recordatorio:", formatError(error));
+    if (newMessages.length === 0) return;
+
+    const updated = await updateProfileFromMessages({
+      profileStore,
+      model: profileModel,
+      messages: newMessages.map((message) => ({ role: message.author, content: message.content })),
+    });
+
+    if (updated) {
+      await memoryStore.setState(PROFILE_MARKER_KEY, allMessages.at(-1)!.id);
     }
+  } catch (error) {
+    console.warn("[maybeUpdateProfile] error:", formatError(error));
   }
 }
 
@@ -245,12 +277,10 @@ export async function runBotLoop(deps: BotDependencies): Promise<void> {
   while (true) {
     try {
       await fetchAndStoreUpdates(deps);
-
-      const summaryRecalculated = await maybeRecalculateSummary(deps);
-      if (summaryRecalculated) continue;
-
       await deliverDueReminders(deps);
       await maybeReply(deps);
+      await maybeUpdateProfile(deps);
+      await maybeRecalculateSummary(deps);
     } catch (error) {
       console.error("[main-loop] error:", formatError(error));
     }

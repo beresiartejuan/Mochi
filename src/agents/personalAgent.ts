@@ -12,6 +12,7 @@ export type AgentConfig = {
   model: LanguageModel;
   summary: string;
   memories: string[];
+  profile?: string;
   messages: Array<{ role: MessageAuthor; content: string }>;
   tools: Record<string, Tool>;
   telegramApi: Api;
@@ -22,12 +23,13 @@ export type AgentResult =
   | { type: "text"; text: string }
   | { type: "tool_sent"; messages: TelegramMessageToolResult[] };
 
-function buildSystemMessages(summary: string, memories: string[]) {
+function buildSystemMessages(summary: string, memories: string[], profile?: string) {
   const parts = [
     PERSONALITY_SYSTEM_PROMPT,
+    profile && profile.trim().length > 0 ? profile : "",
     TOOL_INSTRUCTIONS_SYSTEM_PROMPT,
     buildContextSystemPrompt(summary),
-  ];
+  ].filter((part) => part.length > 0);
 
   if (memories.length > 0) {
     parts.push(
@@ -39,11 +41,11 @@ function buildSystemMessages(summary: string, memories: string[]) {
 }
 
 export async function runPersonalAgent(config: AgentConfig): Promise<AgentResult> {
-  const { model, summary, memories, messages, tools } = config;
+  const { model, summary, memories, profile, messages, tools } = config;
 
   const result = await generateText({
     model,
-    system: buildSystemMessages(summary, memories),
+    system: buildSystemMessages(summary, memories, profile),
     messages,
     tools,
     stopWhen: isStepCount(10),

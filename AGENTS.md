@@ -9,7 +9,7 @@ Guía para agentes que trabajen en este proyecto.
 - Sin librería de bot de Telegram. Se usa `node-telegram-bot-api` solo como cliente HTTP de la API.
 - Ollama Cloud vía el SDK de Vercel AI con el provider `ollama-ai-provider-v2`.
 - Variables de entorno validadas con Zod en `src/config/env.ts`.
-- `SUMMARY_MODEL` puede apuntar a un modelo distinto de `CHAT_MODEL`; si no se define, se usa `CHAT_MODEL`.
+- `SUMMARY_MODEL` puede apuntar a un modelo distinto de `CHAT_MODEL`; si no se define, se usa `CHAT_MODEL`. Ídem `PROFILE_MODEL` (destilador de perfil).
 - `WORKSPACE_DIR` es obligatoria y define el directorio de ejecución de la tool `executeCommand`.
 - Importar archivos del proyecto con extensión `.js`, no `.ts`.
 
@@ -25,7 +25,8 @@ Guía para agentes que trabajen en este proyecto.
 - Búsqueda de memoria híbrida: `MemoryStore.searchScored` combina FTS (`fts_match`/`fts_score`, peso 0.3) + similitud coseno (`vector_distance_cos` de Turso sobre columna `embedding`, peso 0.7), normalizando cada canal por su máximo; fallback a keywords si ambos fallan. `search()` devuelve solo los records; `searchSemantic()` expone el canal vectorial puro.
 - Dedup en `MemoryStore.add()`: matcheo exacto por contenido o semántico (coseno >= 0.86) actualiza `updated_at` en vez de insertar duplicado. `purgeExpired()` borra vencidos y `backfillEmbeddings()` regenera vectores de filas sin embedding (migraciones/legado); ambos corren al inicio vía `runMemoryMaintenance` (`src/bot/botLoop.ts`).
 - La primera ejecución de la app (o el primer `remember`) es lenta: descarga y compila el modelo de embeddings.
-- `src/store/reminderStore.ts`: recordatorios únicos y recurrentes (daily/weekly/monthly/yearly) en la tabla `reminders`. Tools `setReminder`/`listReminders`/`deleteReminder` en `src/agents/tools/reminderTools.ts`. El loop entrega los vencidos por Telegram (`deliverDueReminders` en `src/bot/botLoop.ts`) y reprograma o desactiva según recurrencia.
+- `src/store/reminderStore.ts`: recordatorios únicos y recurrentes (daily/weekly/monthly/yearly) en la tabla `reminders`. Tools `setReminder`/`listReminders`/`deleteReminder` en `src/agents/tools/reminderTools.ts`. Entrega consolidada en `runReminderRunner` (`src/bot/reminderRunner.ts`): pre-aviso (`getUpcoming`, columnas `notify_before_ms`/`pre_notified_at`, ~30 min antes según config de cada recordatorio) + vencidos. `advanceRecurrence` resetea `pre_notified_at` para que las recurrentes re-avisen en cada ciclo.
+- Perfil de usuario: `src/profile/` (`profileStore` tabla `profile_sections`, `profileService` destilador LLM con JSON por sección, `profilePrompt`). El loop (`maybeUpdateProfile` en `src/bot/botLoop.ts`) corre el destilador con los mensajes nuevos tras el marcador `PROFILE_MARKER_KEY` (tabla `state`) y lo inyecta siempre en el system prompt del agente. Regla del destilador: solo información explícita del usuario, nunca inventar.
 - Recall proactivo: antes de cada respuesta, `recallProactiveMemories` (`src/bot/botLoop.ts`) busca con búsqueda híbrida (FTS + vectores) las top-5 memorias relacionadas con el mensaje entrante y las inyecta en el system prompt (`runPersonalAgent`).
 - `src/summary/`: lógica de resumen de conversación.
 - `src/telegram/`: polling manual y funciones de la API de Telegram.
@@ -36,6 +37,7 @@ Guía para agentes que trabajen en este proyecto.
 - `MessageStore` no es Singleton. Se crea una instancia en `createBotDependencies()` y se pasa explícitamente.
 - El poller expone `fetchUpdates()` público para que el bucle controle el timing.
 - El resumen se recalcula cuando `sum(score) > 25`. El batch de mensajes a resumir frena antes de incluir una respuesta del asistente si supera score 13 (`src/summary/summaryService.ts`).
+- Orden del loop (`runBotLoop`): fetch de updates → entrega de recordatorios → respuesta del agente → destilador de perfil → resumen. Las entregas al usuario van primero; el trabajo LLM de fondo (perfil, resumen) corre al final para no bloquear avisos y respuestas.
 - El bot solo responde mensajes del `CHAT_ID` autorizado, y solo si el último mensaje del usuario tiene más de 30 segundos (`src/utils/time.ts`).
 - El envío de mensajes a Telegram es una tool (`sendTelegramMessage`). El agente debe usarla para responder; si no lo hace, el bucle envía el texto libre como fallback.
 - El agente puede encadenar hasta 10 pasos de herramientas (`stopWhen: isStepCount(10)` en `src/agents/personalAgent.ts`).
