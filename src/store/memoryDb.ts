@@ -43,10 +43,18 @@ CREATE TABLE IF NOT EXISTS reminders (
   last_fired_at INTEGER,
   fire_count INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  active INTEGER NOT NULL DEFAULT 1
+  active INTEGER NOT NULL DEFAULT 1,
+  notify_before_ms INTEGER NOT NULL DEFAULT 0,
+  pre_notified_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders (due_at, active);
+
+CREATE TABLE IF NOT EXISTS profile_sections (
+  section TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;
 
 export async function openMemoryDb(path: string): Promise<TursoDatabase> {
@@ -63,6 +71,14 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   {
     name: "memories_embedding_column",
     sql: "ALTER TABLE memories ADD COLUMN embedding TEXT",
+  },
+  {
+    name: "reminders_notify_columns",
+    sql: "ALTER TABLE reminders ADD COLUMN notify_before_ms INTEGER NOT NULL DEFAULT 0",
+  },
+  {
+    name: "reminders_pre_notified_column",
+    sql: "ALTER TABLE reminders ADD COLUMN pre_notified_at INTEGER",
   },
 ];
 

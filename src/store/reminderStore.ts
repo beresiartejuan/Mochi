@@ -12,18 +12,23 @@ export type ReminderRecord = {
   fireCount: number;
   createdAt: Date;
   active: boolean;
+  notifyBeforeMs: number;
+  preNotifiedAt: Date | null;
 };
 
 export type ReminderInput = {
   content: string;
   dueAt: Date;
   recurrence?: Recurrence | null;
+  notifyBeforeMs?: number;
 };
+
+export const SUGGESTED_NOTIFY_BEFORE_MS = 1_800_000;
 
 const VALID_RECURRENCES = new Set<Recurrence>(["daily", "weekly", "monthly", "yearly"]);
 
 const REMINDER_COLUMNS =
-  "id, content, due_at, recurrence, last_fired_at, fire_count, created_at, active";
+  "id, content, due_at, recurrence, last_fired_at, fire_count, created_at, active, notify_before_ms, pre_notified_at";
 
 export class ReminderStore {
   private readonly db: TursoDatabase;
@@ -36,12 +41,14 @@ export class ReminderStore {
     const id = randomUUID();
     const now = Date.now();
     const recurrence = input.recurrence && VALID_RECURRENCES.has(input.recurrence) ? input.recurrence : null;
+    const notifyBeforeMs = input.notifyBeforeMs != null && input.notifyBeforeMs >= 0 ? input.notifyBeforeMs : 0;
+    const preNotifiedAt = notifyBeforeMs > 0 && input.dueAt.getTime() - now <= notifyBeforeMs ? now : null;
 
     await (
       await this.db.prepare(
-        "INSERT INTO reminders (id, content, due_at, recurrence, last_fired_at, fire_count, created_at, active) VALUES (?, ?, ?, ?, NULL, 0, ?, 1)",
+        "INSERT INTO reminders (id, content, due_at, recurrence, last_fired_at, fire_count, created_at, active, notify_before_ms, pre_notified_at) VALUES (?, ?, ?, ?, NULL, 0, ?, 1, ?, ?)",
       )
-    ).run(id, input.content, input.dueAt.getTime(), recurrence, now);
+    ).run(id, input.content, input.dueAt.getTime(), recurrence, now, notifyBeforeMs, preNotifiedAt);
 
     return {
       id,
@@ -52,6 +59,8 @@ export class ReminderStore {
       fireCount: 0,
       createdAt: new Date(now),
       active: true,
+      notifyBeforeMs,
+      preNotifiedAt: preNotifiedAt == null ? null : new Date(preNotifiedAt),
     };
   }
 
@@ -72,6 +81,22 @@ export class ReminderStore {
       )
     ).all(limit)) as Array<Record<string, unknown>>;
     return rows.map(rowToReminder);
+  }
+
+  async getUpcoming(now = new Date(), windowMs = SUGGESTED_NOTIFY_BEFORE_MS): Promise<ReminderRecord[]> {
+    const rows = (await (
+      await this.db.prepare(
+        `SELECT ${REMINDER_COLUMNS} FROM reminders WHERE active = 1 AND due_at > ? AND ? - due_at <= notify_before_ms AND notify_before_ms > 0 AND pre_notified_at IS NULL ORDER BY due_at ASC LIMIT 20`,
+      )
+    ).all(now.getTime(), windowMs)) as Array<Record<string, unknown>>;
+
+    return rows.map(rowToReminder);
+  }
+
+  async markPreNotified(id: string, at = new Date()): Promise<void> {
+    await (
+      await this.db.prepare("UPDATE reminders SET pre_notified_at = ? WHERE id = ?")
+    ).run(at.getTime(), id);
   }
 
   async deactivate(id: string): Promise<boolean> {
@@ -112,7 +137,9 @@ export class ReminderStore {
     const next = computeNextDue(from, recurrence);
     if (!next) return null;
 
-    await (await this.db.prepare("UPDATE reminders SET due_at = ? WHERE id = ?")).run(next.getTime(), id);
+    await (
+      await this.db.prepare("UPDATE reminders SET due_at = ?, pre_notified_at = NULL WHERE id = ?")
+    ).run(next.getTime(), id);
     return next;
   }
 }
@@ -149,6 +176,8 @@ function rowToReminder(row: Record<string, unknown>): ReminderRecord {
     fireCount: Number(row.fire_count ?? 0),
     createdAt: new Date(Number(row.created_at ?? 0)),
     active: Number(row.active ?? 0) === 1,
+    notifyBeforeMs: Number(row.notify_before_ms ?? 0),
+    preNotifiedAt: row.pre_notified_at == null ? null : new Date(Number(row.pre_notified_at)),
   };
 }
 
