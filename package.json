@@ -8,13 +8,15 @@
     "build": "tsc",
     "dev": "tsx --env-file .env src/index.ts",
     "start": "node --env-file .env dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --declaration false --declarationMap false"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@tavily/core": "^0.7.8",
+    "@tursodatabase/database": "^0.7.2",
     "ai": "^7.0.83",
     "dotenv": "^17.4.2",
     "node-telegram-bot-api": "^2.1.0",
